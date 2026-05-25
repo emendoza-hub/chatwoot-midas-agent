@@ -48,12 +48,21 @@ class ProveedorN8N(ProveedorWhatsApp):
             if isinstance(telefono, (int, float)):
                 telefono = str(telefono)
 
+            tags_raw = body.get("tags") or body.get("etiquetas") or []
+            if isinstance(tags_raw, str):
+                tags = [t.strip() for t in tags_raw.split(",") if t.strip()]
+            elif isinstance(tags_raw, list):
+                tags = [str(t) for t in tags_raw]
+            else:
+                tags = []
+
             if texto:
                 mensajes.append(MensajeEntrante(
                     telefono=str(telefono),
                     texto=str(texto),
                     mensaje_id=str(mensaje_id),
                     es_propio=False,
+                    tags=tags,
                 ))
 
         return mensajes

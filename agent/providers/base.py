@@ -9,6 +9,7 @@ class MensajeEntrante:
     texto: str
     mensaje_id: str
     es_propio: bool = False
+    tags: list[str] | None = None
 
 
 class ProveedorWhatsApp(ABC):

@@ -1,4 +1,5 @@
 import os
+import re
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
@@ -77,12 +78,19 @@ async def webhook_handler(request: Request):
             await guardar_mensaje(msg.telefono, "user", msg.texto)
             await guardar_mensaje(msg.telefono, "assistant", respuesta)
 
-            enviado = await proveedor.enviar_mensaje(msg.telefono, respuesta)
-            logger.info(f"Respuesta a {msg.telefono}: {respuesta[:100]}... (enviado: {enviado})")
+            menciona_agente = bool(re.search(r'(claudia|@claudia)', msg.texto, re.IGNORECASE))
+            enviado = await proveedor.enviar_mensaje(
+                msg.telefono, respuesta,
+                conversation_id=msg.conversation_id,
+                private=menciona_agente
+            )
+            logger.info(f"Respuesta a {msg.telefono}: {respuesta[:100]}... (enviado: {enviado}, privado: {menciona_agente})")
 
             respuestas.append({
                 "telefono": msg.telefono,
                 "respuesta": respuesta,
+                "conversation_id": msg.conversation_id,
+                "private": menciona_agente,
                 "enviado": enviado,
             })
 

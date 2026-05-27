@@ -8,6 +8,7 @@ class MensajeEntrante:
     telefono: str
     texto: str
     mensaje_id: str
+    conversation_id: str = ""
     es_propio: bool = False
     tags: list[str] | None = None
 
@@ -19,7 +20,7 @@ class ProveedorWhatsApp(ABC):
         ...
 
     @abstractmethod
-    async def enviar_mensaje(self, telefono: str, mensaje: str) -> bool:
+    async def enviar_mensaje(self, telefono: str, mensaje: str, conversation_id: str = "", private: bool = False) -> bool:
         ...
 
     async def validar_webhook(self, request: Request) -> dict | int | None:

@@ -14,8 +14,12 @@ class ProveedorN8N(ProveedorWhatsApp):
             logger.warning("N8N_WEBHOOK_URL no configurado en .env")
 
     async def parsear_webhook(self, request: Request) -> list[MensajeEntrante]:
-        body = await request.json()
-        logger.info(f"Payload recibido de n8n: {body}")
+        try:
+            body = await request.json()
+        except Exception:
+            logger.warning("Payload inválido (no es JSON)")
+            return []
+        logger.info(f"Payload recibido de n8n: conv_id='{body.get('conversation_id', '')}', sender='{body.get('sender', '')}', message='{str(body.get('message', ''))[:50]}'")
 
         mensajes = []
 
@@ -42,6 +46,12 @@ class ProveedorN8N(ProveedorWhatsApp):
                 or body.get("id")
                 or str(hash(str(body)))
             )
+            conversation_id = (
+                body.get("conversation_id")
+                or body.get("conversationId")
+                or body.get("conversation")
+                or ""
+            )
 
             if isinstance(telefono, dict):
                 telefono = telefono.get("phone_number", telefono.get("id", "desconocido"))
@@ -61,13 +71,14 @@ class ProveedorN8N(ProveedorWhatsApp):
                     telefono=str(telefono),
                     texto=str(texto),
                     mensaje_id=str(mensaje_id),
+                    conversation_id=str(conversation_id),
                     es_propio=False,
                     tags=tags,
                 ))
 
         return mensajes
 
-    async def enviar_mensaje(self, telefono: str, mensaje: str) -> bool:
+    async def enviar_mensaje(self, telefono: str, mensaje: str, conversation_id: str = "", private: bool = False) -> bool:
         if not self.webhook_url:
             logger.warning("N8N_WEBHOOK_URL no configurado, no se puede enviar respuesta")
             return False
@@ -75,7 +86,10 @@ class ProveedorN8N(ProveedorWhatsApp):
         payload = {
             "respuesta": mensaje,
             "telefono": telefono,
+            "conversation_id": conversation_id,
+            "private": private,
         }
+        logger.info(f"Enviando callback a n8n: conversation_id='{conversation_id}', telefono='{telefono}', private={private}, url={self.webhook_url}")
 
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -83,7 +97,7 @@ class ProveedorN8N(ProveedorWhatsApp):
                 if r.status_code not in (200, 201, 202):
                     logger.error(f"Error al enviar a n8n: {r.status_code} — {r.text}")
                     return False
-                logger.info(f"Respuesta enviada a n8n para {telefono}")
+                logger.info(f"Callback exitoso a n8n para {telefono} (conv: {conversation_id}, privado: {private})")
                 return True
         except Exception as e:
             logger.error(f"Error de conexión con n8n: {e}")

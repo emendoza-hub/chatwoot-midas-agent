@@ -1,14 +1,18 @@
 import os
+import re
 import yaml
 import logging
+from pathlib import Path
 
 logger = logging.getLogger("agentkit")
+
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 def cargar_info_negocio() -> dict:
     try:
-        with open("config/business.yaml", "r", encoding="utf-8") as f:
-            return yaml.safe_load(f)
+        with open(BASE_DIR / "config/business.yaml", "r", encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
     except FileNotFoundError:
         logger.error("config/business.yaml no encontrado")
         return {}
@@ -20,24 +24,31 @@ def obtener_horario() -> str:
 
 
 def buscar_en_knowledge(consulta: str) -> str:
-    resultados = []
-    knowledge_dir = "knowledge"
+    knowledge_dir = BASE_DIR / "knowledge"
 
-    if not os.path.exists(knowledge_dir):
+    if not knowledge_dir.exists():
         return "No hay archivos de conocimiento disponibles."
 
-    for archivo in os.listdir(knowledge_dir):
-        ruta = os.path.join(knowledge_dir, archivo)
-        if archivo.startswith(".") or not os.path.isfile(ruta):
+    tokens = set(re.findall(r'\w+', consulta.lower()))
+    if not tokens:
+        return "No encontré información específica sobre eso en mis archivos."
+
+    resultados = []
+
+    for archivo in knowledge_dir.iterdir():
+        if archivo.name.startswith(".") or not archivo.is_file():
             continue
         try:
-            with open(ruta, "r", encoding="utf-8") as f:
-                contenido = f.read()
-                if consulta.lower() in contenido.lower():
-                    resultados.append(f"[{archivo}]: {contenido[:500]}")
+            contenido = archivo.read_text(encoding="utf-8")
+            contenido_lower = contenido.lower()
+            matching = sum(1 for t in tokens if t in contenido_lower)
+            if matching > 0:
+                relevancia = matching / len(tokens)
+                resultados.append((relevancia, f"[{archivo.name}]: {contenido[:500]}"))
         except (UnicodeDecodeError, IOError):
             continue
 
     if resultados:
-        return "\n---\n".join(resultados)
+        resultados.sort(key=lambda x: -x[0])
+        return "\n---\n".join(r[1] for r in resultados[:3])
     return "No encontré información específica sobre eso en mis archivos."
